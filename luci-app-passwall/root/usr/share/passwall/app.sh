@@ -359,17 +359,6 @@ parse_doh() {
 	eval "${__url_var}='${__url}' ${__host_var}='${__host}' ${__port_var}='${__port}' ${__bootstrap_var}='${__bootstrap}'"
 }
 
-get_dnsmasq_conf_dir() {
-	local dnsmasq_conf_path=$(grep -l "^conf-dir=" /tmp/etc/dnsmasq.conf.${DEFAULT_DNSMASQ_CFGID})
-	[ -n "$dnsmasq_conf_path" ] && {
-		local dnsmasq_conf_dir=$(grep '^conf-dir=' "$dnsmasq_conf_path" | cut -d'=' -f2 | head -n 1)
-		[ -n "$dnsmasq_conf_dir" ] && {
-			DNSMASQ_CONF_DIR=${dnsmasq_conf_dir%*/}
-			TMP_DNSMASQ_PATH=${DNSMASQ_CONF_DIR}/${CONFIG}
-		}
-	}
-}
-
 run_ipt2socks() {
 	local flag proto tcp_tproxy local_port socks_address socks_port socks_username socks_password log_file
 	local _extra_param=""
@@ -1361,9 +1350,8 @@ start_dns() {
 			else
 				smartdns_remote_dns="tcp://1.1.1.1"
 			fi
-			local smartdns_exclude_default_group=$(config_t_get global smartdns_exclude_default_group 0)
 			lua $APP_PATH/helper_smartdns_add.lua -FLAG "default" -SMARTDNS_CONF "/tmp/etc/smartdns/$CONFIG.conf" \
-				-LOCAL_GROUP ${group_domestic:-nil} -REMOTE_GROUP "passwall_proxy" -REMOTE_PROXY_SERVER ${TCP_SOCKS_server} -REMOTE_EXCLUDE "${smartdns_exclude_default_group}" \
+				-LOCAL_GROUP ${group_domestic:-nil} -REMOTE_GROUP "passwall_proxy" -REMOTE_PROXY_SERVER ${TCP_SOCKS_server}  -USE_DEFAULT_DNS "${USE_DEFAULT_DNS:-direct}" \
 				-TUN_DNS ${smartdns_remote_dns} \
 				-USE_DIRECT_LIST "${USE_DIRECT_LIST}" -USE_PROXY_LIST "${USE_PROXY_LIST}" -USE_BLOCK_LIST "${USE_BLOCK_LIST}" -USE_GFW_LIST "${USE_GFW_LIST}" -CHN_LIST "${CHN_LIST}" \
 				-TCP_NODE ${TCP_NODE} -DEFAULT_PROXY_MODE "${TCP_PROXY_MODE}" -NO_PROXY_IPV6 ${FILTER_PROXY_IPV6:-0} -NFTFLAG ${nftflag:-0} \
@@ -2011,7 +1999,17 @@ RESOLVFILE=/tmp/resolv.conf.d/resolv.conf.auto
 ISP_DNS=$(cat $RESOLVFILE 2>/dev/null | grep -E -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | grep -v 0.0.0.0 | grep -v 127.0.0.1)
 ISP_DNS6=$(cat $RESOLVFILE 2>/dev/null | grep -E "([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4}" | awk -F % '{print $1}' | awk -F " " '{print $2}'| sort -u | grep -v -Fx ::1 | grep -v -Fx ::)
 
-DEFAULT_DNSMASQ_CFGID=$(uci show dhcp.@dnsmasq[0] |  awk -F '.' '{print $2}' | awk -F '=' '{print $1}'| head -1)
+DEFAULT_DNSMASQ_CFGID="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
+if [ -f "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID" ]; then
+        DNSMASQ_CONF_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DEFAULT_DNSMASQ_CFGID")"
+	if [ -n "$DNSMASQ_CONF_DIR" ]; then
+		DNSMASQ_CONF_DIR=${DNSMASQ_CONF_DIR%*/}
+		TMP_DNSMASQ_PATH=${DNSMASQ_CONF_DIR}/${CONFIG}
+	else
+		DNSMASQ_CONF_DIR="/tmp/dnsmasq.d"
+	fi
+fi
+
 DEFAULT_DNS=$(uci show dhcp.@dnsmasq[0] | grep "\.server=" | awk -F '=' '{print $2}' | sed "s/'//g" | tr ' ' '\n' | grep -v "\/" | head -2 | sed ':label;N;s/\n/,/;b label')
 [ -z "${DEFAULT_DNS}" ] && [ "$(echo $ISP_DNS | tr ' ' '\n' | wc -l)" -le 2 ] && DEFAULT_DNS=$(echo -n $ISP_DNS | tr ' ' '\n' | head -2 | tr '\n' ',')
 LOCAL_DNS="${DEFAULT_DNS:-119.29.29.29,223.5.5.5}"
@@ -2020,8 +2018,6 @@ IPT_APPEND_DNS=${LOCAL_DNS}
 DNS_QUERY_STRATEGY="UseIP"
 [ "$FILTER_PROXY_IPV6" = "1" ] && DNS_QUERY_STRATEGY="UseIPv4"
 DNSMASQ_FILTER_PROXY_IPV6=${FILTER_PROXY_IPV6}
-
-get_dnsmasq_conf_dir
 
 export V2RAY_LOCATION_ASSET=$(config_t_get global_rules v2ray_location_asset "/usr/share/v2ray/")
 export XRAY_LOCATION_ASSET=$V2RAY_LOCATION_ASSET
