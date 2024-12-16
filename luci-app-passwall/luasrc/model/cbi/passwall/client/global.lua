@@ -396,10 +396,6 @@ if api.is_finded("smartdns") then
 		end
 		return DynamicList.write(self, section, t)
 	end
-
-	o = s:taboption("DNS", Flag, "smartdns_exclude_default_group", translate("Exclude Default Group"), translate("Exclude DNS Server from default group."))
-	o.default = "0"
-	o:depends("dns_shunt", "smartdns")
 end
 
 ---- DNS Forward Mode
@@ -557,9 +553,13 @@ o:value("remote", translate("Remote DNS"))
 o:value("direct", translate("Direct DNS"))
 o.description = desc .. "</ul>"
 o:depends({dns_shunt = "dnsmasq", tcp_proxy_mode = "proxy", chn_list = "direct"})
+if api.is_finded("smartdns") then
+	o:depends({dns_shunt = "smartdns", tcp_proxy_mode = "proxy", chn_list = "direct"})
+end
 
-o = s:taboption("DNS", Flag, "dns_redirect", "DNS " .. translate("Redirect"), translate("Force Router DNS server to all local devices."))
-o.default = "0"
+o = s:taboption("DNS", Flag, "dns_redirect", translate("DNS Redirect"), translate("Force special DNS server to need proxy devices."))
+o.default = "1"
+o.rmempty = false
 
 if (uci:get(appname, "@global_forwarding[0]", "use_nft") or "0") == "1" then
 	o = s:taboption("DNS", Button, "clear_ipset", translate("Clear NFTSET"), translate("Try this feature if the rule modification does not take effect."))
