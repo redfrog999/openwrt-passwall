@@ -67,7 +67,7 @@ config PACKAGE_$(PKG_NAME)_Nftables_Transparent_Proxy
 config PACKAGE_$(PKG_NAME)_INCLUDE_Geoview
 	bool "Include Geoview"
 	select PACKAGE_geoview
-	default y if aarch64||arm||i386||x86_64
+	default y if aarch64||arm||i386||mips||mipsel||x86_64
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Haproxy
 	bool "Include Haproxy"
